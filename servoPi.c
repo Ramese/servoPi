@@ -1,7 +1,7 @@
-#define BASE			0x20000000
+#define BASE		0x20000000
 
 #define GPIO_BASE 	(BASE + 0x200000)
-#define PWM_BASE		(BASE + 0x20C000)
+#define PWM_BASE	(BASE + 0x20C000)
 #define CLOCK_BASE	(BASE + 0x101000)
 
 #define PWM_CTL	0
