@@ -4,7 +4,7 @@
 #define PWM_BASE	(BASE + 0x20C000)
 #define CLOCK_BASE	(BASE + 0x101000)
 
-#define PWM_CTL	0
+#define PWM_CTL		0
 #define PWM_RNG1	4
 #define PWM_DAT1	5
 
