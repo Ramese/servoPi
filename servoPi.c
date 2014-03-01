@@ -131,15 +131,18 @@ void inicializacePameti()
 
 void inicializacePWM(){
 	INP_GPIO(GPIO_PWM);
+	OUT_GPIO(GPIO_PWM);
+	INP_GPIO(GPIO_PWM);
 	SET_GPIO_ALT(GPIO_PWM, 5);
 	PWM_CTL = 0;
 	PWM_CLK_CNTL = (PWM_CLK_CNTL&~0x10)|0x5a000000;
 	while(PWM_CLK_CNTL&0x80);
-	PWM_CLK_DIV = 0x5a000000|(1<<12);
-	PWM_CLK_CNTL = 0x5a000001;
-	PWM_CLK_CNTL = 0x5a000011;
+	PWM_CLK_DIV = 0x5a000000|(5<<12);
+	/*PWM_CLK_CNTL = 0x5a000001; zapnout source oscilator */
+	PWM_CLK_CNTL = 0x5a000016; /* zapnout kanal */
 	while(!PWM_CLK_CNTL&0x80);
-	PWM_RNG1 = 384; 
+	printf("%x\n", PWM_CLK_CNTL);
+	PWM_RNG1 = 4000; 
 	/*
 	500;-38kHz => huci ale ok 
 	256;-25kHz => ok
@@ -147,11 +150,12 @@ void inicializacePWM(){
 	
 	*/
 	PWM_DAT1 = 0;
-	PWM_CTL = 0x1;
+	PWM_CTL = 0x81;
 } /* inicializace PWM */
 
 void setHWPWM(float procento){
-	PWM_DAT1 = (int)(384.0*procento);
+	PWM_DAT1 = (int)(4000.0*procento);
+	/*PWM_RNG1 = (int)(256.0*PWM_DAT1);*/
 }
 
 void otaceni(int action){
