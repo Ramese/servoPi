@@ -32,7 +32,8 @@ GPIO 3 - red wire
 #define DEVICE_NAME 	"irc"
 
 struct irc_instance {
-	/*unsigned int last_state; */
+	/*int ircA_old;
+	int ircB_old; */
 	uint32_t act_pos;
 	atomic_t used_count;
 };
@@ -44,16 +45,12 @@ int dev_major=0;
 int irc1_irq_num = 0;
 int irc2_irq_num = 0;
 
-volatile uint32_t ircA_old = 5;
-volatile uint32_t ircB_old = 5;
-uint32_t pozice = 0;
-/*char smer = LEFT;*/
-
 static struct class *irc_class;
 
-int getWay(int ircA_old, int ircB_old) {
+/*int getWay(int ircA_old, int ircB_old) {
 	int pomA = gpio_get_value(IRC1);
 	int pomB = gpio_get_value(IRC2);
+	
 	if(ircA_old == HIGH){
 		if(ircB_old == HIGH){
 			if(pomA == HIGH){
@@ -115,26 +112,27 @@ int getWay(int ircA_old, int ircB_old) {
 			}
 		}
 	}
+	
 	return 0;
-}
+}*/ /* getWay */
 
-static irqreturn_t irc_irq_handler(int irq, void *dev)
-{
-        int pom = getWay(ircA_old,ircB_old);
+static irqreturn_t irc_irq_handler(int irq, void *dev) {
+	/*int pom;
+	struct irc_instance *irc = (struct irc_instance*)(dev);
+        pom = getWay(irc->ircA_old, irc->ircB_old);
         if(pom == 0){
 		printk(KERN_NOTICE "irc driver nestiha citat\n");
 	}
-	pozice += pom;
-        ircA_old = gpio_get_value(IRC1);
-	ircB_old = gpio_get_value(IRC2);
-	printk(KERN_NOTICE "Interrupt funguje1! %u\n", pozice);
+	irc->ircA_old = gpio_get_value(IRC1);
+	irc->ircB_old = gpio_get_value(IRC2);
+	irc->act_pos += pom;*/
+	printk(KERN_NOTICE "irq from irc\n");
         return IRQ_HANDLED;
 } /* irc_irq_handler */
 
-ssize_t irc_read(struct file *file, char *buffer, size_t length, loff_t *offset)
-{
+ssize_t irc_read(struct file *file, char *buffer, size_t length, loff_t *offset) {
 	struct irc_instance *irc = (struct irc_instance*)(file->private_data);
-	
+/*	uint32_t pos;*/
 	int bytes_to_copy;
 	int ret;
 
@@ -148,8 +146,11 @@ ssize_t irc_read(struct file *file, char *buffer, size_t length, loff_t *offset)
 		printk(KERN_DEBUG "this will always return zero.\n");
 		return 0;
 	}
-	/*&irc->act_pos*/
-	ret = copy_to_user(buffer, &pozice, sizeof(uint32_t));
+	
+/*	pos = *(volatile uint32_t*)&irc->act_pos;*/
+	
+/*	ret = copy_to_user(buffer, &pos, sizeof(uint32_t));*/
+	ret = copy_to_user(buffer, &irc->act_pos, sizeof(uint32_t));
 
 	buffer += sizeof(uint32_t);
 	
@@ -158,10 +159,9 @@ ssize_t irc_read(struct file *file, char *buffer, size_t length, loff_t *offset)
 		return -EFAULT;
 
 	return length-bytes_to_copy;
-}
+} /* irc_read */
 
-int irc_open(struct inode *inode, struct file *file)
-{
+int irc_open(struct inode *inode, struct file *file) {
 	int dev_minor = MINOR(file->f_dentry->d_inode->i_rdev);
 	struct irc_instance *irc;
 	if(dev_minor > 0){
@@ -173,10 +173,9 @@ int irc_open(struct inode *inode, struct file *file)
 
 	file->private_data = irc;
 	return 0;
-}
+} /* irc_open */
 
-int irc_relase(struct inode *inode, struct file *file)
-{
+int irc_relase(struct inode *inode, struct file *file) {
 	struct irc_instance *irc = (struct irc_instance*)(file->private_data);
 	if(!irc){
 		printk(KERN_ERR "irc_read: no instance\n");
@@ -187,10 +186,9 @@ int irc_relase(struct inode *inode, struct file *file)
 	}
 	
 	return 0;
-}
+} /* irc_relase */
 
-struct file_operations irc_fops=
-{
+struct file_operations irc_fops={
 	.owner=THIS_MODULE,
 	.read=irc_read,
 	.write=NULL,
@@ -199,11 +197,10 @@ struct file_operations irc_fops=
 	.release=irc_relase,
 };
 
-static int servoPi_init(void)
-{
-	
-	int dev_minor = 0;
+static int servoPi_init(void) {
 	int res;
+	int dev_minor = 0;
+	
 	struct device *this_dev;
 	
 	printk(KERN_NOTICE "servoPi init started\n");
@@ -266,13 +263,13 @@ static int servoPi_init(void)
 		return (-1);
 	}
 	
-	if(request_irq((unsigned int)irc1_irq_num, irc_irq_handler, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "irc1_irq", NULL) != 0){
+	if(request_irq((unsigned int)irc1_irq_num, irc_irq_handler, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "irc1_irq", &irc0) != 0){
 		printk(KERN_ERR "failed request IRQ GPIO 2\n");
 		gpio_free(IRC1);
 		gpio_free(IRC2);
 		return (-1);
 	}
-	if(request_irq((unsigned int)irc2_irq_num, irc_irq_handler, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "irc2_irq", NULL) != 0){
+	if(request_irq((unsigned int)irc2_irq_num, irc_irq_handler, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "irc2_irq", &irc0) != 0){
 		printk(KERN_ERR "failed request IRQ GPIO 3\n");
 		gpio_free(IRC1);
 		gpio_free(IRC2);
@@ -283,13 +280,11 @@ static int servoPi_init(void)
 	printk(KERN_NOTICE "servoPi init done\n");
 	return 0;
 register_error:
- 	class_destroy(irc_class);
- 	return -ENODEV;
-
+	class_destroy(irc_class);
+	return -ENODEV;
 } /* servoPi_init */
 
-static void servoPi_exit(void)
-{
+static void servoPi_exit(void) {
 	int dev_minor = 0;
 	
 	device_destroy(irc_class, MKDEV(dev_major, dev_minor));

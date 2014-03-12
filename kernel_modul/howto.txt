@@ -1,0 +1,37 @@
+export ARCH=arm
+export CROSS_COMPILE=/media/Data/KERNEL/tools-master/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian/bin/arm-linux-gnueabihf-
+export INSTALL_MOD_PATH=/media/Data/KERNEL/ModulZkouska/
+make -C ../kompilace/linux-rpi-3.10.y M=$(pwd) modules
+
+
+
+[ 7014.457609] ------------[ cut here ]------------
+[ 7014.457652] WARNING: at kernel/irq/manage.c:1342 __free_irq+0x9c/0x1d0()
+[ 7014.457656] Trying to free already-free IRQ 172
+[ 7014.457703] Modules linked in: servoPi_modul(O-) snd_bcm2835 snd_soc_bcm2708_i2s regmap_mmio snd_soc_core regmap_spi snd_pcm snd_page_alloc regmap_i2c snd_compress snd_seq snd_timer snd_seq_device leds_gpio led_class snd
+[ 7014.457718] CPU: 0 PID: 2344 Comm: rmmod Tainted: G           O 3.10.26-rt24 #1
+[ 7014.457772] [<c0013b74>] (unwind_backtrace+0x0/0xf0) from [<c0010ec8>] (show_stack+0x10/0x14)
+[ 7014.457800] [<c0010ec8>] (show_stack+0x10/0x14) from [<c001e6c4>] (warn_slowpath_common+0x4c/0x68)
+[ 7014.457820] [<c001e6c4>] (warn_slowpath_common+0x4c/0x68) from [<c001e774>] (warn_slowpath_fmt+0x30/0x40)
+[ 7014.457841] [<c001e774>] (warn_slowpath_fmt+0x30/0x40) from [<c007c96c>] (__free_irq+0x9c/0x1d0)
+[ 7014.457863] [<c007c96c>] (__free_irq+0x9c/0x1d0) from [<c007cae0>] (free_irq+0x40/0x80)
+[ 7014.457893] [<c007cae0>] (free_irq+0x40/0x80) from [<bf0ba5a4>] (servoPi_exit+0x50/0x74 [servoPi_modul])
+[ 7014.457929] [<bf0ba5a4>] (servoPi_exit+0x50/0x74 [servoPi_modul]) from [<c0060cb8>] (SyS_delete_module+0x158/0x224)
+[ 7014.457952] [<c0060cb8>] (SyS_delete_module+0x158/0x224) from [<c000dc00>] (ret_fast_syscall+0x0/0x30)
+[ 7014.457958] ---[ end trace 0000000000000002 ]---
+[ 7014.457963] ------------[ cut here ]------------
+[ 7014.457976] WARNING: at kernel/irq/manage.c:1342 __free_irq+0x9c/0x1d0()
+[ 7014.457979] Trying to free already-free IRQ 173
+[ 7014.458015] Modules linked in: servoPi_modul(O-) snd_bcm2835 snd_soc_bcm2708_i2s regmap_mmio snd_soc_core regmap_spi snd_pcm snd_page_alloc regmap_i2c snd_compress snd_seq snd_timer snd_seq_device leds_gpio led_class snd
+[ 7014.458025] CPU: 0 PID: 2344 Comm: rmmod Tainted: G        W  O 3.10.26-rt24 #1
+[ 7014.458052] [<c0013b74>] (unwind_backtrace+0x0/0xf0) from [<c0010ec8>] (show_stack+0x10/0x14)
+[ 7014.458072] [<c0010ec8>] (show_stack+0x10/0x14) from [<c001e6c4>] (warn_slowpath_common+0x4c/0x68)
+[ 7014.458091] [<c001e6c4>] (warn_slowpath_common+0x4c/0x68) from [<c001e774>] (warn_slowpath_fmt+0x30/0x40)
+[ 7014.458113] [<c001e774>] (warn_slowpath_fmt+0x30/0x40) from [<c007c96c>] (__free_irq+0x9c/0x1d0)
+[ 7014.458132] [<c007c96c>] (__free_irq+0x9c/0x1d0) from [<c007cae0>] (free_irq+0x40/0x80)
+[ 7014.458155] [<c007cae0>] (free_irq+0x40/0x80) from [<bf0ba5b0>] (servoPi_exit+0x5c/0x74 [servoPi_modul])
+[ 7014.458179] [<bf0ba5b0>] (servoPi_exit+0x5c/0x74 [servoPi_modul]) from [<c0060cb8>] (SyS_delete_module+0x158/0x224)
+[ 7014.458198] [<c0060cb8>] (SyS_delete_module+0x158/0x224) from [<c000dc00>] (ret_fast_syscall+0x0/0x30)
+[ 7014.458202] ---[ end trace 0000000000000003 ]---
+[ 7014.458205] servoPi modul closed
+
