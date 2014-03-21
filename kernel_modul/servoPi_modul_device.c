@@ -47,7 +47,7 @@ int irc2_irq_num = 0;
 
 static struct class *irc_class;
 
-/*int getWay(int ircA_old, int ircB_old) {
+int getWay(int ircA_old, int ircB_old) {
 	int pomA = gpio_get_value(IRC1);
 	int pomB = gpio_get_value(IRC2);
 	
@@ -114,7 +114,7 @@ static struct class *irc_class;
 	}
 	
 	return 0;
-}*/ /* getWay */
+} /* getWay */
 
 static irqreturn_t irc_irq_handler(int irq, void *dev) {
 	/*int pom;

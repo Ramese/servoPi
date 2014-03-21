@@ -54,6 +54,7 @@ static struct class *irc_class;
 int getWay(int ircA_old, int ircB_old) {
 	int pomA = gpio_get_value(IRC1);
 	int pomB = gpio_get_value(IRC2);
+	
 	if(ircA_old == HIGH){
 		if(ircB_old == HIGH){
 			if(pomA == HIGH){
@@ -115,8 +116,9 @@ int getWay(int ircA_old, int ircB_old) {
 			}
 		}
 	}
+	
 	return 0;
-}
+} /* getWay */
 
 static irqreturn_t irc_irq_handler(int irq, void *dev)
 {
@@ -131,10 +133,9 @@ static irqreturn_t irc_irq_handler(int irq, void *dev)
         return IRQ_HANDLED;
 } /* irc_irq_handler */
 
-ssize_t irc_read(struct file *file, char *buffer, size_t length, loff_t *offset)
-{
+ssize_t irc_read(struct file *file, char *buffer, size_t length, loff_t *offset) {
 	struct irc_instance *irc = (struct irc_instance*)(file->private_data);
-	
+/*	uint32_t pos;*/
 	int bytes_to_copy;
 	int ret;
 
@@ -158,10 +159,9 @@ ssize_t irc_read(struct file *file, char *buffer, size_t length, loff_t *offset)
 		return -EFAULT;
 
 	return length-bytes_to_copy;
-}
+} /* irc_read */
 
-int irc_open(struct inode *inode, struct file *file)
-{
+int irc_open(struct inode *inode, struct file *file) {
 	int dev_minor = MINOR(file->f_dentry->d_inode->i_rdev);
 	struct irc_instance *irc;
 	if(dev_minor > 0){
@@ -173,10 +173,9 @@ int irc_open(struct inode *inode, struct file *file)
 
 	file->private_data = irc;
 	return 0;
-}
+} /* irc_open */
 
-int irc_relase(struct inode *inode, struct file *file)
-{
+int irc_relase(struct inode *inode, struct file *file) {
 	struct irc_instance *irc = (struct irc_instance*)(file->private_data);
 	if(!irc){
 		printk(KERN_ERR "irc_read: no instance\n");
@@ -187,10 +186,9 @@ int irc_relase(struct inode *inode, struct file *file)
 	}
 	
 	return 0;
-}
+} /* irc_relase */
 
-struct file_operations irc_fops=
-{
+struct file_operations irc_fops={
 	.owner=THIS_MODULE,
 	.read=irc_read,
 	.write=NULL,
@@ -199,11 +197,10 @@ struct file_operations irc_fops=
 	.release=irc_relase,
 };
 
-static int servoPi_init(void)
-{
-	
-	int dev_minor = 0;
+static int servoPi_init(void) {
 	int res;
+	int dev_minor = 0;
+	
 	struct device *this_dev;
 	
 	printk(KERN_NOTICE "servoPi init started\n");
@@ -283,13 +280,11 @@ static int servoPi_init(void)
 	printk(KERN_NOTICE "servoPi init done\n");
 	return 0;
 register_error:
- 	class_destroy(irc_class);
- 	return -ENODEV;
-
+	class_destroy(irc_class);
+	return -ENODEV;
 } /* servoPi_init */
 
-static void servoPi_exit(void)
-{
+static void servoPi_exit(void) {
 	int dev_minor = 0;
 	
 	device_destroy(irc_class, MKDEV(dev_major, dev_minor));
