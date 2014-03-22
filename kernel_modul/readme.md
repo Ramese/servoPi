@@ -1,7 +1,7 @@
 Postup kompilace
 --------------
 
-make -C /lib/modules/$(uname -r)/build M=$(pwd) modules
+./build.sh
 
 Vlozeni do jadra
 --------------

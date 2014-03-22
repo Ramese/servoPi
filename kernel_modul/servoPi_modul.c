@@ -45,10 +45,6 @@ int dev_major=0;
 int irc1_irq_num = 0;
 int irc2_irq_num = 0;
 
-
-/*uint32_t pozice = 0;*/
-/*char smer = LEFT;*/
-
 static struct class *irc_class;
 
 int getWay(int ircA_old, int ircB_old) {
@@ -231,7 +227,7 @@ static int servoPi_init(void) {
 	    
 	if(gpio_request(IRC2, IRC2_name) != 0){
 		printk(KERN_ERR "failed request GPIO 3\n");
-		gpio_free(IRC1); /* uvolnim predesle pozadovane GPIO */
+		gpio_free(IRC1);
 		return (-1);
 	}
 	    
@@ -303,6 +299,6 @@ module_init(servoPi_init);
 module_exit(servoPi_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_VERSION("0.0.1");
+MODULE_VERSION("1.0");
 MODULE_DESCRIPTION("servoPi module for driving servo");
 MODULE_AUTHOR("Radek");
