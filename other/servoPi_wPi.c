@@ -1,4 +1,9 @@
 /*
+
+File: servoPi_wPi.c
+
+Imlementation with regulator using wiringPi.
+
 servoPi
 Autor: Radek Mečiar
 

@@ -1,4 +1,10 @@
 /*
+
+file: servoPi_basic.c
+
+Basic imlementation of PWM. 
+
+
 servoPi
 Autor: Radek Mečiar
 */
