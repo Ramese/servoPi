@@ -120,12 +120,12 @@ static irqreturn_t irc_irq_handler(int irq, void *dev){
 	irc_instance *irc = (irc_instance*)dev;
         int pom = getWay(irc->ircA_old,irc->ircB_old);
         if(pom == 0){
-		printk(KERN_NOTICE "irc driver nestiha citat\n");
+		printk(KERN_NOTICE "irc nestiha\n");
 	}
 	irc->act_pos += pom;
         irc->ircA_old = gpio_get_value(IRC1);
 	irc->ircB_old = gpio_get_value(IRC2);
-	printk(KERN_NOTICE "%u\n", irc->act_pos);
+	/*printk(KERN_NOTICE "%u\n", irc->act_pos);*/
         return IRQ_HANDLED;
 } /* irc_irq_handler */
 
