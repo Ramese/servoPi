@@ -2,8 +2,6 @@
 servoPi
 Autor: Radek Mečiar
 
-+ wiringPi lib
-
 */
 #define BASE		0x20000000
 #define GPIO_BASE 	(BASE + 0x200000)
@@ -34,6 +32,8 @@ Autor: Radek Mečiar
 #define IN_PIN          8
 #define IN_PIN2         9
 
+#define MS		1000000
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -42,6 +42,10 @@ Autor: Radek Mečiar
 #include <errno.h>
 #include <string.h>
 #include <stdint.h>
+
+#include <pthread.h>
+#include <sched.h>
+#include <time.h>
 
 /*
 #include <string.h>
@@ -181,14 +185,76 @@ void otaceni(int action){
 	}
 } /* otaceni */
 
+void timespec_add (struct timespec *sum, const struct timespec *left,
+	      const struct timespec *right)
+{
+  sum->tv_sec = left->tv_sec + right->tv_sec;
+  sum->tv_nsec = left->tv_nsec + right->tv_nsec;
+
+  if (sum->tv_nsec >= 1000000000){
+     ++sum->tv_sec;
+     sum->tv_nsec -= 1000000000;
+  }
+} /* timespect_add*/
+
+static void setprio(int prio, int sched) {
+   	struct sched_param param;
+/*   	 Set realtime priority for this thread*/
+   	param.sched_priority = prio;
+   	if (sched_setscheduler(0, sched, &param) < 0)
+   		perror("sched_setscheduler");
+}
+
+void *thread_func(void *arg){
+	const struct timespec period = {0, MS};
+	struct timespec time_to_wait;
+
+/*	int count = 0;*/
+/*	log zaznam[VELIKOST];*/
+
+	FILE *soubor;
+	uint32_t pozice = 0;
+        int lastCounter = 0;
+        if((soubor = fopen("/dev/irc0", "r")) == NULL){
+		printf("chyba otevreni souboru /dev/irc0\n");
+		return 0;
+	}
+	clock_gettime(CLOCK_MONOTONIC,&time_to_wait);
+	setprio(95, SCHED_FIFO);
+	while(1) {	  
+		timespec_add(&time_to_wait,&time_to_wait,&period);
+		if(fread(&pozice,1,sizeof(uint32_t),soubor) == -1){
+			printf("chyba pri cteni ze souboru /dev/irc0\n");
+			fclose(soubor);
+			return 0;
+		}
+		printf ("\r%6d: %6d", 0, pozice - lastCounter);
+		regulatorPID(otacky-(pozice-lastCounter));
+		lastCounter = pozice;
+/*		zaznam[count].time = time_to_wait;*/
+/*		zaznam[count].number = count;*/
+/*		++count;*/
+/*		printFile(time_to_wait, count);*/
+		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &time_to_wait,NULL);		
+	}
+	
+/*	vypis(zaznam, VELIKOST);*/
+	return 0;
+
+} /* thread_func */
+
 int main(int argc, char **argv)
 {
 	FILE *soubor;
 	uint32_t pozice = 0;
-        int lastCounter = 0;
+/*        int lastCounter = 0;*/
 
 	int hodnota = 0;
 	int smer = 0;
+	
+	pthread_t thr;
+	pthread_attr_t attr;
+	
   	puts("program servoPi bezi");
   	inicializacePameti();
         inicializacePWM();
@@ -201,7 +267,8 @@ int main(int argc, char **argv)
 		fclose(soubor);
 		return 0;
 	}
-	lastCounter = pozice;
+	fclose(soubor);
+/*	lastCounter = pozice;*/
 	printf("soubor obsahuje cislo %u\n", pozice);
 	
 	INP_GPIO(GPIO_LEFT);
@@ -215,19 +282,13 @@ int main(int argc, char **argv)
 		otaceni(smer);
 		setHWPWM(hodnota);
 	}
-
-	for (;;) {
-		usleep(900);
-		if(fread(&pozice,1,sizeof(uint32_t),soubor) == -1){
-			printf("chyba pri cteni ze souboru /dev/irc0\n");
-			fclose(soubor);
-			return 0;
-		}
-		printf ("\r%6d: %6d", 0, pozice - lastCounter);
-		regulatorPID(otacky-(pozice-lastCounter));
-		lastCounter = pozice;
-	}
-	fclose(soubor);
-	puts("Konec");
+	
+	if (pthread_attr_init(&attr)){
+   		puts("Chyba pthread_attr_init");
+   		return 1;
+   	}
+   	
+   	pthread_create(&thr, &attr, &thread_func, NULL);
+	pthread_join(thr, NULL);
 	return 0;
 } /* main */
