@@ -63,6 +63,7 @@ volatile unsigned *gpio, *pwm, *clk;
 static volatile int oldError = 14;
 static volatile int integrator = 0;
 static volatile int otacky = 7;
+volatile int direction = LEFT;
 
 #define INP_GPIO(g) 		*(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
 #define OUT_GPIO(g) 		*(gpio+((g)/10)) |=  (1<<(((g)%10)*3))
@@ -71,8 +72,7 @@ static volatile int otacky = 7;
 #define GPIO_SET 	*(gpio+7)
 #define GPIO_CLR 	*(gpio+10)
 
-void inicializacePameti()
-{
+void inicializacePameti() {
 	if ((mem_fd = open("/dev/mem", O_RDWR|O_SYNC) ) < 0) {
 		printf("can't open /dev/mem\nroot access needed\n");
 		exit(-1);
@@ -105,7 +105,6 @@ void inicializacePameti()
 
    	clk = (volatile unsigned *)clk_map;
 	
-
 	close(mem_fd);
 
 } /* inicializacePameti */
@@ -136,36 +135,6 @@ void inicializacePWM(){
 	/* zapnout MSEN=1 & ENA=1 */
 } /* inicializace PWM */
 
-void setHWPWM(int hodnota){
-	if(hodnota > 4000){
-                PWM_DAT1 = 4000;
-                /*power = 4000;*/
-        }else if(hodnota < 0){
-                PWM_DAT1 = 0;
-/*                power = 0;*/
-        }else{
-                PWM_DAT1 = hodnota;
-/*                power = power+hodnota;*/
-        }
-} /* setHWPWM */
-
-void regulatorPID(int error){
-        int akce = 0;
-        int P = 1, I = 1, D = 1;
-        integrator += I*error;
-	if(integrator > 3000) {
-		integrator = 3000;
-	}
-	
-	if(integrator < -1000) {
-		integrator = -1000;
-	}
-        akce = P * error + integrator + D*(oldError - error);
-        oldError = error;
-        setHWPWM(akce);
-/*	printf("\r%5d %5d %5d", akce, oldError, integrator);*/
-}
-
 void otaceni(int action){
 	if(action == LEFT){
 		/* zapne LEFT vypne RIGHT */
@@ -184,6 +153,45 @@ void otaceni(int action){
 		puts("Nedefinovaná akce");
 	}
 } /* otaceni */
+
+void setHWPWM(int hodnota){
+	if(hodnota < 0 && direction == LEFT){
+		otaceni(RIGHT);
+		hodnota *= -1;
+		direction = RIGHT;
+	}else if(hodnota < 0 && direction == RIGHT){
+		otaceni(LEFT);
+		hodnota *= -1;
+		direction = LEFT;
+	}
+	
+	if(hodnota > 4000){
+                PWM_DAT1 = 4000;
+                /*power = 4000;*/
+        }else{
+                PWM_DAT1 = hodnota;
+/*                power = power+hodnota;*/
+        }
+} /* setHWPWM */
+
+void regulatorPID(int error){
+        int akce;
+        int P = 1, I = 1, D = 1;
+        integrator += I*error;
+	if(integrator > 4000) {
+		integrator = 4000;
+	}
+	
+	if(integrator < -4000) {
+		integrator = -4000;
+	}
+        akce = P * error + integrator + D*(oldError - error);
+        oldError = error;
+        setHWPWM(akce);
+/*	printf("\r%5d %5d %5d", akce, oldError, integrator);*/
+}
+
+
 
 void timespec_add (struct timespec *sum, const struct timespec *left,
 	      const struct timespec *right)
@@ -205,7 +213,7 @@ static void setprio(int prio, int sched) {
    		perror("sched_setscheduler");
 }
 
-void *thread_func(void *arg){
+void *thread_controller(void *arg){
 	const struct timespec period = {0, MS};
 	struct timespec time_to_wait;
 
@@ -241,7 +249,7 @@ void *thread_func(void *arg){
 /*	vypis(zaznam, VELIKOST);*/
 	return 0;
 
-} /* thread_func */
+} /* thread_controller */
 
 int main(int argc, char **argv)
 {
@@ -282,13 +290,14 @@ int main(int argc, char **argv)
 		otaceni(smer);
 		setHWPWM(hodnota);
 	}
+	otaceni(direction);
 	
 	if (pthread_attr_init(&attr)){
    		puts("Chyba pthread_attr_init");
    		return 1;
    	}
    	
-   	pthread_create(&thr, &attr, &thread_func, NULL);
+   	pthread_create(&thr, &attr, &thread_controller, NULL);
 	pthread_join(thr, NULL);
 	return 0;
 } /* main */
