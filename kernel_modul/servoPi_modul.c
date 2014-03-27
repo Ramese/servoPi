@@ -47,85 +47,110 @@ int irc2_irq_num = 0;
 
 static struct class *irc_class;
 
-int getWay(int ircA_old, int ircB_old) {
-	int pomA = gpio_get_value(IRC1);
-	int pomB = gpio_get_value(IRC2);
-	
-	if(ircA_old == HIGH){
-		if(ircB_old == HIGH){
-			if(pomA == HIGH){
-				if(pomB == HIGH){
-					return 0;
-				}else if(pomB == LOW){
-					return RIGHT;
-				}
-			}else if(pomA == LOW){
-				if(pomB == HIGH){
-					return LEFT;  
-				}else if(pomB == LOW){
-					return 0;
-				}
-			}
-		}else if(ircB_old == LOW){
-			if(pomA == HIGH){
-				if(pomB == HIGH){
-					return LEFT;
-				}else if(pomB == LOW){
-					return 0;
-				}
-			}else if(pomA == LOW){
-				if(pomB == HIGH){
-					return 0;
-				}else if(pomB == LOW){
-					return RIGHT;
-				}
-			}
-		}
-	}else if(ircA_old == LOW){
-		if(ircB_old == HIGH){
-			if(pomA == HIGH){
-				if(pomB == HIGH){
-					return RIGHT;
-				}else if(pomB == LOW){
-					return 0;
-				}
-			}else if(pomA == LOW){
-				if(pomB == HIGH){
-					return 0;
-				}else if(pomB == LOW){
-					return LEFT;
-				}
-			}
-		}else if(ircB_old == LOW){
-			if(pomA == HIGH){
-				if(pomB == HIGH){
-					return 0;
-				}else if(pomB == LOW){
-					return LEFT;
-				}
-			}else if(pomA == LOW){
-				if(pomB == HIGH){
-					return RIGHT;
-				}else if(pomB == LOW){
-					return 0;
-				}
-			}
-		}
-	}
-	
-	return 0;
+volatile int movement[16];
+
+static void init_move(void){
+	/* A_old B_old A_now B_now*/
+	movement[0] = 0;
+	movement[1] = RIGHT;
+	movement[2] = LEFT;
+	movement[3] = 0;
+	movement[4] = LEFT;
+	movement[5] = 0;
+	movement[6] = 0;
+	movement[7] = RIGHT;
+	/**/
+	movement[8] = RIGHT;
+	movement[9] = 0;
+	movement[10] = 0;
+	movement[11] = LEFT;
+	movement[12] = 0;
+	movement[13] = LEFT;
+	movement[14] = RIGHT;
+	movement[15] = 0;
+}
+
+int getWay(int ircA_old, int ircB_old, int ircA_now, int ircB_now) {
+	return movement[8*ircA_old+4*ircB_old+ircA_now*2 + ircB_now*1];
+/*	if(ircA_old == HIGH){*/
+/*		if(ircB_old == HIGH){*/
+/*			if(ircA_now == HIGH){*/
+/*				if(ircB_now == HIGH){*/
+/*					return 0;*/
+/*				}else if(ircB_now == LOW){*/
+/*					return RIGHT;*/
+/*				}*/
+/*			}else if(ircA_now == LOW){*/
+/*				if(ircB_now == HIGH){*/
+/*					return LEFT;  */
+/*				}else if(ircB_now == LOW){*/
+/*					return 0;*/
+/*				}*/
+/*			}*/
+/*		}else if(ircB_old == LOW){*/
+/*			if(ircA_now == HIGH){*/
+/*				if(ircB_now == HIGH){*/
+/*					return LEFT;*/
+/*				}else if(ircB_now == LOW){*/
+/*					return 0;*/
+/*				}*/
+/*			}else if(ircA_now == LOW){*/
+/*				if(ircB_now == HIGH){*/
+/*					return 0;*/
+/*				}else if(ircB_now == LOW){*/
+/*					return RIGHT;*/
+/*				}*/
+/*			}*/
+/*		}*/
+/*	}else if(ircA_old == LOW){*/
+/*		if(ircB_old == HIGH){*/
+/*			if(ircA_now == HIGH){*/
+/*				if(ircB_now == HIGH){*/
+/*					return RIGHT;*/
+/*				}else if(ircB_now == LOW){*/
+/*					return 0;*/
+/*				}*/
+/*			}else if(ircA_now == LOW){*/
+/*				if(ircB_now == HIGH){*/
+/*					return 0;*/
+/*				}else if(ircB_now == LOW){*/
+/*					return LEFT;*/
+/*				}*/
+/*			}*/
+/*		}else if(ircB_old == LOW){*/
+/*			if(ircA_now == HIGH){*/
+/*				if(ircB_now == HIGH){*/
+/*					return 0;*/
+/*				}else if(ircB_now == LOW){*/
+/*					return LEFT;*/
+/*				}*/
+/*			}else if(ircA_now == LOW){*/
+/*				if(ircB_now == HIGH){*/
+/*					return RIGHT;*/
+/*				}else if(ircB_now == LOW){*/
+/*					return 0;*/
+/*				}*/
+/*			}*/
+/*		}*/
+/*	}*/
+/*	*/
+/*	return 0;*/
 } /* getWay */
 
 static irqreturn_t irc_irq_handler(int irq, void *dev){
+	volatile int Anow, Bnow;
 	irc_instance *irc = (irc_instance*)dev;
-        int pom = getWay(irc->ircA_old,irc->ircB_old);
-        if(pom == 0){
-		printk(KERN_NOTICE "irc nestiha\n");
-	}
+        volatile int pom;
+        Anow = gpio_get_value(IRC1);
+        Bnow = gpio_get_value(IRC2);
+        pom = getWay(irc->ircA_old,irc->ircB_old, Anow, Bnow);
+/*        if(pom == 0){*/
+/*		printk(KERN_NOTICE "irc nestiha\n");*/
+/*	}*/
 	irc->act_pos += pom;
-        irc->ircA_old = gpio_get_value(IRC1);
-	irc->ircB_old = gpio_get_value(IRC2);
-	/*printk(KERN_NOTICE "%u\n", irc->act_pos);*/
+        irc->ircA_old = Anow;
+	irc->ircB_old = Bnow;
+/*	printk(KERN_NOTICE "%u\n", irc->act_pos);*/
         return IRQ_HANDLED;
 } /* irc_irq_handler */
 
@@ -274,7 +299,7 @@ static int servoPi_init(void) {
 		free_irq((unsigned int)irc1_irq_num, NULL);
 		return (-1);
 	}
-	
+	init_move();
 	printk(KERN_NOTICE "servoPi init done\n");
 	return 0;
 register_error:
