@@ -42,7 +42,7 @@ Autor: Radek Mečiar
 #include <errno.h>
 #include <string.h>
 #include <stdint.h>
-
+/*#include <inttypes.h>*/
 #include <pthread.h>
 #include <sched.h>
 #include <time.h>
@@ -59,11 +59,14 @@ int mem_fd;
 void *gpio_map, *pwm_map, *clk_map;
 volatile unsigned *gpio, *pwm, *clk;
 
-/*static volatile int power = 2000;*/
 static volatile int oldError = 14;
 static volatile int integrator = 0;
-static volatile int otacky = 7;
-volatile int direction = LEFT;
+
+uint32_t pozice = 0;
+volatile int orientace = 0;
+volatile uint64_t pozadovanaPozice = 0;
+volatile uint64_t pozadovanaRychlost = 0;
+/*volatile int direction = LEFT;*/
 
 #define INP_GPIO(g) 		*(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
 #define OUT_GPIO(g) 		*(gpio+((g)/10)) |=  (1<<(((g)%10)*3))
@@ -140,44 +143,44 @@ void otaceni(int action){
 		/* zapne LEFT vypne RIGHT */
 		GPIO_CLR = 1<<GPIO_RIGHT;
 		GPIO_SET = 1<<GPIO_LEFT;
-		puts("Otáčení do leva");
+/*		puts("Otáčení do leva");*/
 	}else if(action == RIGHT){
 		GPIO_CLR = 1<<GPIO_LEFT;
 		GPIO_SET = 1<<GPIO_RIGHT;
-		puts("Otáčení do prava");
+/*		puts("Otáčení do prava");*/
 	}else if(action == STOP){
 		GPIO_CLR = 1<<GPIO_RIGHT;
 		GPIO_CLR = 1<<GPIO_LEFT;
-		puts("Stop");
+/*		puts("Stop");*/
 	}else{
 		puts("Nedefinovaná akce");
 	}
 } /* otaceni */
 
 void setHWPWM(int hodnota){
-	if(hodnota < 0 && direction == LEFT){
-		otaceni(RIGHT);
+	if(hodnota < 0){
+		otaceni(RIGHT*orientace);
 		hodnota *= -1;
-		direction = RIGHT;
-	}else if(hodnota < 0 && direction == RIGHT){
-		otaceni(LEFT);
-		hodnota *= -1;
-		direction = LEFT;
+	}else if(hodnota > 0){
+		otaceni(LEFT*orientace);
 	}
 	
 	if(hodnota > 4000){
                 PWM_DAT1 = 4000;
-                /*power = 4000;*/
+        }else if(hodnota < 0){
+        	PWM_DAT1 = 0;
         }else{
                 PWM_DAT1 = hodnota;
-/*                power = power+hodnota;*/
         }
 } /* setHWPWM */
 
+#define KON	2
+
 void regulatorPID(int error){
-        int akce;
-        int P = 1, I = 1, D = 1;
+        int akce = 0;
+        int P = 40*KON, I = 1*KON, D = 2*KON;
         integrator += I*error;
+/*        printf(" integratr %05i", integrator);*/
 	if(integrator > 4000) {
 		integrator = 4000;
 	}
@@ -189,13 +192,10 @@ void regulatorPID(int error){
         oldError = error;
         setHWPWM(akce);
 /*	printf("\r%5d %5d %5d", akce, oldError, integrator);*/
-}
+/*	printf(" akce %05i", akce);*/
+} /* regulatorPID */
 
-
-
-void timespec_add (struct timespec *sum, const struct timespec *left,
-	      const struct timespec *right)
-{
+void timespec_add (struct timespec *sum, const struct timespec *left, const struct timespec *right) {
   sum->tv_sec = left->tv_sec + right->tv_sec;
   sum->tv_nsec = left->tv_nsec + right->tv_nsec;
 
@@ -211,24 +211,33 @@ static void setprio(int prio, int sched) {
    	param.sched_priority = prio;
    	if (sched_setscheduler(0, sched, &param) < 0)
    		perror("sched_setscheduler");
-}
+} /* setprio */
+
+void setSpeed(){
+	uint32_t pom = 65;
+	printf("pozadovanaRychlost je %lx%lx velikost je %d\n",(long unsigned int)(pozadovanaRychlost>>4), (long unsigned int)pozadovanaRychlost,sizeof(uint64_t));
+	pozadovanaRychlost = (pom << 31);
+	
+/*	if(pozadovanaRychlost != (uint32_t)2147483648){*/
+/*		puts("eee");*/
+/*	}*/
+	printf("pozadovanaRychlost je %lx%lx velikost je %d\n",(long unsigned int)(pozadovanaRychlost>>32), (long unsigned int)pozadovanaRychlost,sizeof(uint64_t));
+} /* setSpeed */
 
 void *thread_controller(void *arg){
 	const struct timespec period = {0, MS};
 	struct timespec time_to_wait;
-
-/*	int count = 0;*/
-/*	log zaznam[VELIKOST];*/
-
 	FILE *soubor;
-	uint32_t pozice = 0;
-        int lastCounter = 0;
+/*	uint32_t pozice = 0;*/
+	int pom = 0;
+	
         if((soubor = fopen("/dev/irc0", "r")) == NULL){
 		printf("chyba otevreni souboru /dev/irc0\n");
 		return 0;
 	}
 	clock_gettime(CLOCK_MONOTONIC,&time_to_wait);
 	setprio(95, SCHED_FIFO);
+	
 	while(1) {	  
 		timespec_add(&time_to_wait,&time_to_wait,&period);
 		if(fread(&pozice,1,sizeof(uint32_t),soubor) == -1){
@@ -236,67 +245,91 @@ void *thread_controller(void *arg){
 			fclose(soubor);
 			return 0;
 		}
-		printf ("\r%6d: %6d", 0, pozice - lastCounter);
-		regulatorPID(otacky-(pozice-lastCounter));
-		lastCounter = pozice;
-/*		zaznam[count].time = time_to_wait;*/
-/*		zaznam[count].number = count;*/
-/*		++count;*/
-/*		printFile(time_to_wait, count);*/
+		pozadovanaPozice += pozadovanaRychlost;
+		pom = (int)((pozadovanaPozice>>32) - pozice);
+/*		printf ("\r%010u: %010i", (unsigned int)(pozadovanaPozice>>32), pom);*/
+		regulatorPID(pom);
 		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &time_to_wait,NULL);		
 	}
 	
-/*	vypis(zaznam, VELIKOST);*/
 	return 0;
 
 } /* thread_controller */
 
-int main(int argc, char **argv)
-{
+int diagnostikaSmeru(void){
+	uint32_t next = 0;
+	int vysledek;
 	FILE *soubor;
-	uint32_t pozice = 0;
-/*        int lastCounter = 0;*/
-
-	int hodnota = 0;
-	int smer = 0;
-	
-	pthread_t thr;
-	pthread_attr_t attr;
-	
-  	puts("program servoPi bezi");
-  	inicializacePameti();
-        inicializacePWM();
 	if((soubor = fopen("/dev/irc0", "r")) == NULL){
 		printf("chyba otevreni souboru /dev/irc0\n");
-		return 0;
+		return 1;
 	}
 	if(fread(&pozice,1,sizeof(uint32_t),soubor) == -1){
 		printf("chyba pri cteni ze souboru /dev/irc0\n");
 		fclose(soubor);
-		return 0;
+		return 1;
+	}
+	
+	printf("soubor obsahuje cislo %u\n", pozice);
+	otaceni(LEFT);
+	setHWPWM(100);
+	usleep(100000);
+	setHWPWM(0);
+	if(fread(&next,1,sizeof(uint32_t),soubor) == -1){
+		printf("chyba pri cteni ze souboru /dev/irc0\n");
+		fclose(soubor);
+		return 1;
+	}
+	vysledek = (int)next - (int)pozice;
+	if(vysledek < 0) {
+		orientace = -1;
+	}else{
+		orientace = 1;
 	}
 	fclose(soubor);
-/*	lastCounter = pozice;*/
-	printf("soubor obsahuje cislo %u\n", pozice);
+	pozice = next;
+	pozadovanaPozice = (uint64_t)(pozice) << 32;
+	return 0;
+} /* diagnostikaSmeru */
+
+int main(int argc, char **argv) {
+	int hodnota = 0;
 	
-	INP_GPIO(GPIO_LEFT);
+	pthread_t thr;
+	pthread_attr_t attr;
+	setSpeed();
+	
+  	puts("program servoPi bezi");
+  	
+  	inicializacePameti();
+        inicializacePWM();
+	/* nastaveni GPIO pro output - zmena smeru */
+        INP_GPIO(GPIO_LEFT);
 	OUT_GPIO(GPIO_LEFT);
 	INP_GPIO(GPIO_RIGHT);
 	OUT_GPIO(GPIO_RIGHT);
 	
-	while(smer < 5){
-		puts("Procento a smer (1-L, 2-R, 3-S)");
-		scanf("%i %i", &hodnota, &smer);
-		otaceni(smer);
+	if(diagnostikaSmeru() != 0){
+		puts("Diagnostika smeru selhala");
+		return 0;
+	}
+	if(orientace == 1){
+		printf("orientace do leva je kladna\n");
+	}else{
+		printf("orientace do leva je zaporna\n");
+	}
+	
+	while(hodnota < 5000){
+		puts("Procento:");
+		scanf("%i", &hodnota);
 		setHWPWM(hodnota);
 	}
-	otaceni(direction);
 	
+	/* controller thread */
 	if (pthread_attr_init(&attr)){
    		puts("Chyba pthread_attr_init");
    		return 1;
    	}
-   	
    	pthread_create(&thr, &attr, &thread_controller, NULL);
 	pthread_join(thr, NULL);
 	return 0;
