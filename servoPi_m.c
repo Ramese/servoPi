@@ -46,6 +46,8 @@ Autor: Radek Mečiar
 #include <pthread.h>
 #include <sched.h>
 #include <time.h>
+#include <sys/stat.h>
+
 
 /*
 #include <string.h>
@@ -65,7 +67,7 @@ static volatile int integrator = 0;
 uint32_t pozice = 0;
 volatile int orientace = 0;
 volatile uint64_t pozadovanaPozice = 0;
-volatile uint64_t pozadovanaRychlost = 0;
+volatile int64_t pozadovanaRychlost = 0;
 /*volatile int direction = LEFT;*/
 
 #define INP_GPIO(g) 		*(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
@@ -256,6 +258,30 @@ void *thread_controller(void *arg){
 
 } /* thread_controller */
 
+void *thread_readValue(void *arg){
+	FILE *fd;
+	char * myfifo = "/media/ramdisk/otackyFIFO";
+	int64_t pom = 0;
+	puts("Nastavuji prioritu ctecimu procesu 49");
+	setprio(95, SCHED_FIFO);
+	puts("Oteviram soubor /media/ramdisk/otackyFIFO");
+	
+	while(1) {
+		fd = fopen(myfifo, "r");
+		puts("Snazim se cist hodnotu");
+		if(fread(&pom, sizeof(int64_t),1, fd) != 1){
+			puts("chyba cteni fifo");
+		}
+		fclose(fd);
+		puts("Mam hodnou");
+		pozadovanaRychlost = pom;
+		printf("Pozadovana rychlost: 0x%08x%08x\n", (unsigned int)(pozadovanaRychlost>>32), (unsigned int)pozadovanaRychlost);
+	}
+	
+	return 0;
+
+} /* thread_controller */
+
 int diagnostikaSmeru(void){
 	uint32_t next = 0;
 	int vysledek;
@@ -293,10 +319,19 @@ int diagnostikaSmeru(void){
 } /* diagnostikaSmeru */
 
 int main(int argc, char **argv) {
+
+/*	FILE *fd;*/
+/*	char * myfifo = "/media/ramdisk/otackyFIFO";*/
+/*	int64_t pom = 0;*/
+	
 	int hodnota = 0;
 	
-	pthread_t thr;
-	pthread_attr_t attr;
+	pthread_t controller;
+	pthread_attr_t controller_attr;
+	
+	pthread_t readValue;
+	pthread_attr_t readValue_attr;
+
 	setSpeed();
 	
   	puts("program servoPi bezi");
@@ -324,13 +359,23 @@ int main(int argc, char **argv) {
 		scanf("%i", &hodnota);
 		setHWPWM(hodnota);
 	}
-	
+	puts("Start ridiciho vlakna");
 	/* controller thread */
-	if (pthread_attr_init(&attr)){
+	if (pthread_attr_init(&controller_attr)){
    		puts("Chyba pthread_attr_init");
    		return 1;
    	}
-   	pthread_create(&thr, &attr, &thread_controller, NULL);
-	pthread_join(thr, NULL);
+   	pthread_create(&controller, &controller_attr, &thread_controller, NULL);
+	
+	puts("Startuju vlakno pro cteni hodnoty");
+	/* reading new value thread */
+	if (pthread_attr_init(&readValue_attr)){
+   		puts("Chyba pthread_attr_init");
+   		return 1;
+   	}
+   	pthread_create(&readValue, &readValue_attr, &thread_readValue, NULL);
+   	
+	pthread_join(readValue, NULL);
+	pthread_join(controller, NULL);
 	return 0;
 } /* main */
