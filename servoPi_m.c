@@ -47,7 +47,10 @@ Autor: Radek Mečiar
 #include <sched.h>
 #include <time.h>
 #include <sys/stat.h>
-
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h> 
+#include <arpa/inet.h>
 
 /*
 #include <string.h>
@@ -176,11 +179,11 @@ void setHWPWM(int hodnota){
         }
 } /* setHWPWM */
 
-#define KON	2
+#define KON	1
 
 void regulatorPID(int error){
         int akce = 0;
-        int P = 40*KON, I = 1*KON, D = 2*KON;
+        int P = 40*KON, I = 1*KON, D = 5*KON;
         integrator += I*error;
 /*        printf(" integratr %05i", integrator);*/
 	if(integrator > 4000) {
@@ -191,8 +194,9 @@ void regulatorPID(int error){
 		integrator = -4000;
 	}
         akce = P * error + integrator + D*(oldError - error);
+        printf("\r%08i", akce);
         oldError = error;
-        setHWPWM(akce);
+        setHWPWM(akce/10);
 /*	printf("\r%5d %5d %5d", akce, oldError, integrator);*/
 /*	printf(" akce %05i", akce);*/
 } /* regulatorPID */
@@ -263,7 +267,7 @@ void *thread_readValue(void *arg){
 	char * myfifo = "/media/ramdisk/otackyFIFO";
 	int64_t pom = 0;
 	puts("Nastavuji prioritu ctecimu procesu 49");
-	setprio(95, SCHED_FIFO);
+/*	setprio(50, SCHED_FIFO);*/
 	puts("Oteviram soubor /media/ramdisk/otackyFIFO");
 	
 	while(1) {
@@ -278,6 +282,62 @@ void *thread_readValue(void *arg){
 		printf("Pozadovana rychlost: 0x%08x%08x\n", (unsigned int)(pozadovanaRychlost>>32), (unsigned int)pozadovanaRychlost);
 	}
 	
+	return 0;
+
+} /* thread_controller */
+
+void *thread_sendValue(void *arg){
+/*	FILE *soubor;*/
+	int sockfd;
+	int len;
+	int result;
+	FILE *stream;
+	struct sockaddr_in address;
+	const struct timespec period = {0, 50*MS};
+	struct timespec time_to_wait;
+	struct timespec ts;
+	int32_t pom;
+	
+	/* vytvoření socketu pro klienta */
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	
+	/* pojmenujte socket podle serveru */
+	address.sin_family = AF_INET;
+/*	address.sin_addr.s_addr = inet_addr("192.168.1.23");*/
+	address.sin_addr.s_addr = inet_addr("10.42.0.1");
+	address.sin_port = htons(9051);
+	len = sizeof(address);
+	
+	result = connect(sockfd, (struct sockaddr *)&address, len);
+/*	if((soubor = fopen("/dev/irc0", "r")) == NULL){*/
+/*		printf("chyba otevreni souboru /dev/irc0\n");*/
+/*		return 0;*/
+/*	}*/
+	if(result == -1){
+		perror("opps: klient");
+		exit(1);
+	}
+	stream=fdopen(sockfd,"w");
+	puts("Nastavuji prioritu odesilacimu procesu 49");
+/*	setprio(50, SCHED_FIFO);*/
+	clock_gettime(CLOCK_MONOTONIC,&time_to_wait);
+	while(1) {
+		timespec_add(&time_to_wait,&time_to_wait,&period);
+		clock_gettime(CLOCK_MONOTONIC,&ts);
+		pom = (int32_t)pozice;
+		fwrite(&pom, sizeof(int32_t), 1, stream);
+		pom = (int32_t)ts.tv_sec;
+		fwrite(&pom, sizeof(int32_t), 1, stream);
+		pom = (int32_t)ts.tv_nsec;
+		fwrite(&pom, sizeof(int32_t), 1, stream);
+		//fwrite(&newLine, sizeof(char), 1, stream);
+		fflush(stream);
+		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &time_to_wait,NULL);
+		
+	}
+	close(sockfd);
+	fclose(stream);
+/*	exit(0);*/
 	return 0;
 
 } /* thread_controller */
@@ -331,7 +391,8 @@ int main(int argc, char **argv) {
 	
 	pthread_t readValue;
 	pthread_attr_t readValue_attr;
-
+	pthread_t sendValue;
+	pthread_attr_t sendValue_attr;
 	setSpeed();
 	
   	puts("program servoPi bezi");
@@ -375,7 +436,17 @@ int main(int argc, char **argv) {
    	}
    	pthread_create(&readValue, &readValue_attr, &thread_readValue, NULL);
    	
+
+	
+	puts("Startuju vlakno pro posilani hodnot");
+/*	 reading new value thread */
+	if (pthread_attr_init(&sendValue_attr)){
+   		puts("Chyba pthread_attr_init");
+   		return 1;
+   	}
+   	pthread_create(&sendValue, &sendValue_attr, &thread_sendValue, NULL);
 	pthread_join(readValue, NULL);
 	pthread_join(controller, NULL);
+	pthread_join(sendValue, NULL);
 	return 0;
 } /* main */
