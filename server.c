@@ -37,7 +37,7 @@ int64_t getRequestedSpeed(double cislo){
 	if(cislo < 0){
 		znamenko = -1;
 	}
-	pozRych = ((int64_t)cislo)<<(PRESNOST);
+	pozRych = ((int64_t)znamenko*((int64_t)cislo))<<(PRESNOST);
 	cislo = cislo - (int)cislo;
 	cislo *= znamenko;
 	for(i=31; i>-1; i--){
@@ -46,11 +46,14 @@ int64_t getRequestedSpeed(double cislo){
 			cislo -= pole[PRESNOST-i-1];
 		}
 		if(cislo < pole[PRESNOST-1]){
+			if(znamenko == -1){
+				pozRych = ~pozRych;
+			}
 			break;
 		}
 	}
 	if(znamenko == -1 && pozRych > 0){
-		pozRych *= (double)znamenko;
+		pozRych *= znamenko;
 	}
 	return pozRych;
 }
@@ -98,16 +101,16 @@ int main() {
 		/*ch[0]++;
 		write(client_sockfd, &ch, 1);*/
 		sscanf(ch, "%d", &otackyZaMin);
-		printf("Otacky za min: %d\n", otackyZaMin);
+/*		printf("Otacky za min: %d\n", otackyZaMin);*/
 		pozadovanaRychlost = getRequestedSpeed((double)otackyZaMin/150.0);
-		printf("Pozadovana rychlost: 0x%08x%08x\n", (unsigned int)(pozadovanaRychlost>>32), (unsigned int)pozadovanaRychlost);
-		puts("pokousim se o zapis");
-		puts("Oteviram FIFO");
+/*		printf("Pozadovana rychlost: 0x%08x%08x\n", (unsigned int)(pozadovanaRychlost>>32), (unsigned int)pozadovanaRychlost);*/
+/*		puts("pokousim se o zapis");*/
+/*		puts("Oteviram FIFO");*/
 		fd = fopen(myfifo, "w");
 		if(fwrite(&pozadovanaRychlost,sizeof(int64_t),1,fd) != 1){
 			puts("Chyba pri zapisu");
 		}
-		puts("konec zapisu");
+/*		puts("konec zapisu");*/
 		fclose(fd);
 		
 	}
