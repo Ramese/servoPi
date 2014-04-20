@@ -67,7 +67,7 @@ volatile unsigned *gpio, *pwm, *clk;
 static volatile int oldError = 14;
 static volatile int integrator = 0;
 
-uint32_t pozice = 0;
+volatile uint32_t pozice = 0;
 volatile int orientace = 0;
 volatile uint64_t pozadovanaPozice = 0;
 volatile int64_t pozadovanaRychlost = 0;
@@ -179,19 +179,19 @@ void setHWPWM(int hodnota){
         }
 } /* setHWPWM */
 
-#define KON	1
+#define KON	2
 
 void regulatorPID(int error){
         int akce = 0;
-        int P = 40*KON, I = 1*KON, D = 5*KON;
+        int P = 80*KON, I = 1*KON, D = 6*KON;
         integrator += I*error;
 /*        printf(" integratr %05i", integrator);*/
-	if(integrator > 4000) {
-		integrator = 4000;
+	if(integrator > 40000) {
+		integrator = 40000;
 	}
 	
-	if(integrator < -4000) {
-		integrator = -4000;
+	if(integrator < -40000) {
+		integrator = -40000;
 	}
         akce = P * error + integrator + D*(oldError - error);
         printf("\r%08i", akce);
@@ -236,7 +236,7 @@ void *thread_controller(void *arg){
 	FILE *soubor;
 /*	uint32_t pozice = 0;*/
 	int pom = 0;
-	
+	uint32_t pomm = 0;
         if((soubor = fopen("/dev/irc0", "r")) == NULL){
 		printf("chyba otevreni souboru /dev/irc0\n");
 		return 0;
@@ -246,11 +246,12 @@ void *thread_controller(void *arg){
 	
 	while(1) {	  
 		timespec_add(&time_to_wait,&time_to_wait,&period);
-		if(fread(&pozice,1,sizeof(uint32_t),soubor) == -1){
+		if(fread(&pomm,1,sizeof(uint32_t),soubor) == -1){
 			printf("chyba pri cteni ze souboru /dev/irc0\n");
 			fclose(soubor);
 			return 0;
 		}
+		pozice = pomm;
 		pozadovanaPozice += pozadovanaRychlost;
 		pom = (int)((pozadovanaPozice>>32) - pozice);
 /*		printf ("\r%010u: %010i", (unsigned int)(pozadovanaPozice>>32), pom);*/
@@ -279,6 +280,7 @@ void *thread_readValue(void *arg){
 		fclose(fd);
 		puts("Mam hodnou");
 		pozadovanaRychlost = pom;
+		pozadovanaPozice = ((uint64_t)pozice)<<32;
 		printf("Pozadovana rychlost: 0x%08x%08x\n", (unsigned int)(pozadovanaRychlost>>32), (unsigned int)pozadovanaRychlost);
 	}
 	
@@ -344,18 +346,19 @@ void *thread_sendValue(void *arg){
 
 int diagnostikaSmeru(void){
 	uint32_t next = 0;
+	uint32_t pom = 0;
 	int vysledek;
 	FILE *soubor;
 	if((soubor = fopen("/dev/irc0", "r")) == NULL){
 		printf("chyba otevreni souboru /dev/irc0\n");
 		return 1;
 	}
-	if(fread(&pozice,1,sizeof(uint32_t),soubor) == -1){
+	if(fread(&pom,1,sizeof(uint32_t),soubor) == -1){
 		printf("chyba pri cteni ze souboru /dev/irc0\n");
 		fclose(soubor);
 		return 1;
 	}
-	
+	pozice = pom;
 	printf("soubor obsahuje cislo %u\n", pozice);
 	otaceni(LEFT);
 	setHWPWM(100);
