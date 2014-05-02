@@ -17,11 +17,19 @@ GPIO 3 - red wire
 #include <asm/uaccess.h>
 #include <linux/device.h>
 
-#define IRC1 2 /* GPIO 2 -> IRC1 */
-#define IRC2 3 /* GPIO 3 -> IRC2 */
+#define IRC1	2 /* GPIO 2 -> IRC1 */
+#define IRC2	3 /* GPIO 3 -> IRC2 */
+
+#define IRC1_1	24
+#define IRC2_2	4	
+
+#define IRQ	23
 
 #define IRC1_name	"GPIO2_irc1"
 #define IRC2_name	"GPIO3_irc2"
+#define IRQ_name	"GPIO23_irq"
+#define IRC1_1_name	"GPIO24_irc1_1"
+#define IRC2_2_name	"GPIO4_irc2_2"
 
 #define LEFT	-1
 #define RIGHT	1
@@ -42,8 +50,7 @@ irc_instance irc0;
 
 int dev_major=0;
 
-int irc1_irq_num = 0;
-int irc2_irq_num = 0;
+int irq_num = 0;
 
 static struct class *irc_class;
 
@@ -251,8 +258,32 @@ static int servoPi_init(void) {
 	}
 	    
 	if(gpio_request(IRC2, IRC2_name) != 0){
-		printk(KERN_ERR "failed request GPIO 3\n");
+		printk(KERN_ERR "failed request GPIO 4\n");
 		gpio_free(IRC1);
+		return (-1);
+	}
+	
+	if(gpio_request(IRQ, IRQ_name) != 0){
+		printk(KERN_ERR "failed request GPIO 23\n");
+		gpio_free(IRC1);
+		gpio_free(IRC2);
+		return (-1);
+	}
+	
+	if(gpio_request(IRC1_1, IRC1_1_name) != 0){
+		printk(KERN_ERR "failed request GPIO 24\n");
+		gpio_free(IRC1);
+		gpio_free(IRC2);
+		gpio_free(IRQ);
+		return (-1);
+	}
+	
+	if(gpio_request(IRC2_2, IRC2_2_name) != 0){
+		printk(KERN_ERR "failed request GPIO 4\n");
+		gpio_free(IRC1);
+		gpio_free(IRC2);
+		gpio_free(IRQ);
+		gpio_free(IRC1_1);
 		return (-1);
 	}
 	    
@@ -260,45 +291,73 @@ static int servoPi_init(void) {
 		printk(KERN_ERR "failed set direction input GPIO 2\n");
 		gpio_free(IRC1);
 		gpio_free(IRC2);
+		gpio_free(IRQ);
+		gpio_free(IRC1_1);
+		gpio_free(IRC2_2);
 		return (-1);
 	}
 	    
 	if(gpio_direction_input(IRC2) != 0){
-		printk(KERN_ERR "failed set direction input GPIO 3\n");
+		printk(KERN_ERR "failed set direction input GPIO 4\n");
 		gpio_free(IRC1);
 		gpio_free(IRC2);
-		return (-1);
-	}
-	    
-	irc1_irq_num = gpio_to_irq(IRC1);
-	if(irc1_irq_num < 0){
-		printk(KERN_ERR "failed get IRQ number GPIO 2\n");
-		gpio_free(IRC1);
-		gpio_free(IRC2);
-		return (-1);
-	}
-	    
-	irc2_irq_num = gpio_to_irq(IRC2);
-	if(irc2_irq_num < 0){
-		printk(KERN_ERR "failed get IRQ number GPIO 3\n");
-		gpio_free(IRC1);
-		gpio_free(IRC2);
+		gpio_free(IRQ);
+		gpio_free(IRC1_1);
+		gpio_free(IRC2_2);
 		return (-1);
 	}
 	
-	if(request_irq((unsigned int)irc1_irq_num, irc_irq_handler, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "irc1_irq", &irc0) != 0){
-		printk(KERN_ERR "failed request IRQ GPIO 2\n");
+	if(gpio_direction_input(IRQ) != 0){
+		printk(KERN_ERR "failed set direction input GPIO 23\n");
 		gpio_free(IRC1);
 		gpio_free(IRC2);
+		gpio_free(IRQ);
+		gpio_free(IRC1_1);
+		gpio_free(IRC2_2);
 		return (-1);
 	}
-	if(request_irq((unsigned int)irc2_irq_num, irc_irq_handler, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "irc2_irq", &irc0) != 0){
-		printk(KERN_ERR "failed request IRQ GPIO 3\n");
+	
+	if(gpio_direction_input(IRC1_1) != 0){
+		printk(KERN_ERR "failed set direction input GPIO 23\n");
 		gpio_free(IRC1);
 		gpio_free(IRC2);
-		free_irq((unsigned int)irc1_irq_num, NULL);
+		gpio_free(IRQ);
+		gpio_free(IRC1_1);
+		gpio_free(IRC2_2);
 		return (-1);
 	}
+	
+	if(gpio_direction_input(IRC2_2) != 0){
+		printk(KERN_ERR "failed set direction input GPIO 23\n");
+		gpio_free(IRC1);
+		gpio_free(IRC2);
+		gpio_free(IRQ);
+		gpio_free(IRC1_1);
+		gpio_free(IRC2_2);
+		return (-1);
+	}
+	
+	irq_num = gpio_to_irq(IRQ);
+	if(irq_num < 0){
+		printk(KERN_ERR "failed get IRQ number GPIO 23\n");
+		gpio_free(IRC1);
+		gpio_free(IRC2);
+		gpio_free(IRQ);
+		gpio_free(IRC1_1);
+		gpio_free(IRC2_2);
+		return (-1);
+	}
+	
+	if(request_irq((unsigned int)irq_num, irc_irq_handler, IRQF_TRIGGER_RISING, "irq", &irc0) != 0){
+		printk(KERN_ERR "failed request IRQ GPIO 23\n");
+		gpio_free(IRC1);
+		gpio_free(IRC2);
+		gpio_free(IRQ);
+		gpio_free(IRC1_1);
+		gpio_free(IRC2_2);
+		return (-1);
+	}
+	
 	init_move();
 	printk(KERN_NOTICE "servoPi init done\n");
 	return 0;
@@ -309,10 +368,12 @@ register_error:
 
 static void servoPi_exit(void) {
 	int dev_minor = 0;
-	free_irq((unsigned int)irc1_irq_num, &irc0);
-	free_irq((unsigned int)irc2_irq_num, &irc0);
+	free_irq((unsigned int)irq_num, &irc0);
 	gpio_free(IRC1);
 	gpio_free(IRC2);
+	gpio_free(IRQ);
+	gpio_free(IRC1_1);
+	gpio_free(IRC2_2);
 	device_destroy(irc_class, MKDEV(dev_major, dev_minor));
 	class_destroy(irc_class);
 	unregister_chrdev(dev_major,DEVICE_NAME);
