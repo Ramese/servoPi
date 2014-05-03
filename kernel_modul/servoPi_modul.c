@@ -1,11 +1,10 @@
 /*
-servoPi_modul
+servoPi_modul_4irq.c
 
-Obsadi GPIO 2 a GPIO 3 na RPI P1 pro IRQ.
+Obsadi GPIO 2, 3, 4, 23, 24 na RPI P1 pro vstup.
 
 Moje zapojeni:
-GPIO 2 - yellow wire
-GPIO 3 - red wire
+připojit propojovací obvod
 
 */
 
@@ -19,17 +18,15 @@ GPIO 3 - red wire
 
 #define IRC1	2 /* GPIO 2 -> IRC1 */
 #define IRC2	3 /* GPIO 3 -> IRC2 */
-
-#define IRC1_1	24
-#define IRC2_2	4	
-
+#define IRC3 	24
+#define IRC4	4
 #define IRQ	23
 
 #define IRC1_name	"GPIO2_irc1"
 #define IRC2_name	"GPIO3_irc2"
+#define IRC3_name	"GPIO24_irc1"
+#define IRC4_name	"GPI04_irc2"
 #define IRQ_name	"GPIO23_irq"
-#define IRC1_1_name	"GPIO24_irc1_1"
-#define IRC2_2_name	"GPIO4_irc2_2"
 
 #define LEFT	-1
 #define RIGHT	1
@@ -39,138 +36,188 @@ GPIO 3 - red wire
 
 #define DEVICE_NAME 	"irc"
 
-typedef struct {
-	volatile uint32_t ircA_old;
-	volatile uint32_t ircB_old;
-	volatile uint32_t act_pos;
-	atomic_t used_count;
-} irc_instance;
 
-irc_instance irc0;
+atomic_t used_count;
+volatile uint32_t pozice = 0;
+
+volatile char predesly = 0;
+volatile char smer = 1;
 
 int dev_major=0;
 
-int irq_num = 0;
+int irc1_irq_num = 0;
+int irc2_irq_num = 0;
+int irc3_irq_num = 0;
+int irc4_irq_num = 0;
 
 static struct class *irc_class;
 
-volatile int movement[16];
+/*
+irc_irq_handlerAN:
+	Kanál IRC 1 (= 3) při náběžné hraně určí směr podle kanálu 2 (= 4).
+*/
+static irqreturn_t irc_irq_handlerAN(int irq, void *dev){
+	
+	if(smer == RIGHT){
+		if(predesly == 4){
+			pozice++;
+			predesly = 1;
+			return IRQ_HANDLED;
+		}else if(predesly == 2){
+			pozice--;
+			predesly = 1;
+			smer = LEFT;
+			return IRQ_HANDLED;
+		}
+	}else{
+		if(predesly == 3){
+			pozice--;
+			predesly = 1;
+			return IRQ_HANDLED;
+		}else if(predesly == 2){
+			pozice++;
+			predesly = 1;
+			smer = RIGHT;
+			return IRQ_HANDLED;
+		}
+	}
+		
+	if(gpio_get_value(IRC2) == HIGH){
+		pozice++;
+		smer = RIGHT;
+	}else{
+		pozice--;
+		smer = LEFT;
+	}
+	predesly = 1;
+        return IRQ_HANDLED;
+} /* irc_irq_handlerAN */
 
-static void init_move(void){
-	/* A_old B_old A_now B_now*/
-	movement[0] = 0;
-	movement[1] = RIGHT;
-	movement[2] = LEFT;
-	movement[3] = 0;
-	movement[4] = LEFT;
-	movement[5] = 0;
-	movement[6] = 0;
-	movement[7] = RIGHT;
-	/**/
-	movement[8] = RIGHT;
-	movement[9] = 0;
-	movement[10] = 0;
-	movement[11] = LEFT;
-	movement[12] = 0;
-	movement[13] = LEFT;
-	movement[14] = RIGHT;
-	movement[15] = 0;
-}
+/*
+irc_irq_handlerAS:
+	Kanál IRC 3 (= 1) při sestupné hraně určí směr podle kanálu 2 (= 4).
+*/
+static irqreturn_t irc_irq_handlerAS(int irq, void *dev){
 
-int getWay(int ircA_old, int ircB_old, int ircA_now, int ircB_now) {
-	return movement[8*ircA_old+4*ircB_old+ircA_now*2 + ircB_now*1];
-/*	if(ircA_old == HIGH){*/
-/*		if(ircB_old == HIGH){*/
-/*			if(ircA_now == HIGH){*/
-/*				if(ircB_now == HIGH){*/
-/*					return 0;*/
-/*				}else if(ircB_now == LOW){*/
-/*					return RIGHT;*/
-/*				}*/
-/*			}else if(ircA_now == LOW){*/
-/*				if(ircB_now == HIGH){*/
-/*					return LEFT;  */
-/*				}else if(ircB_now == LOW){*/
-/*					return 0;*/
-/*				}*/
-/*			}*/
-/*		}else if(ircB_old == LOW){*/
-/*			if(ircA_now == HIGH){*/
-/*				if(ircB_now == HIGH){*/
-/*					return LEFT;*/
-/*				}else if(ircB_now == LOW){*/
-/*					return 0;*/
-/*				}*/
-/*			}else if(ircA_now == LOW){*/
-/*				if(ircB_now == HIGH){*/
-/*					return 0;*/
-/*				}else if(ircB_now == LOW){*/
-/*					return RIGHT;*/
-/*				}*/
-/*			}*/
-/*		}*/
-/*	}else if(ircA_old == LOW){*/
-/*		if(ircB_old == HIGH){*/
-/*			if(ircA_now == HIGH){*/
-/*				if(ircB_now == HIGH){*/
-/*					return RIGHT;*/
-/*				}else if(ircB_now == LOW){*/
-/*					return 0;*/
-/*				}*/
-/*			}else if(ircA_now == LOW){*/
-/*				if(ircB_now == HIGH){*/
-/*					return 0;*/
-/*				}else if(ircB_now == LOW){*/
-/*					return LEFT;*/
-/*				}*/
-/*			}*/
-/*		}else if(ircB_old == LOW){*/
-/*			if(ircA_now == HIGH){*/
-/*				if(ircB_now == HIGH){*/
-/*					return 0;*/
-/*				}else if(ircB_now == LOW){*/
-/*					return LEFT;*/
-/*				}*/
-/*			}else if(ircA_now == LOW){*/
-/*				if(ircB_now == HIGH){*/
-/*					return RIGHT;*/
-/*				}else if(ircB_now == LOW){*/
-/*					return 0;*/
-/*				}*/
-/*			}*/
-/*		}*/
-/*	}*/
-/*	*/
-/*	return 0;*/
-} /* getWay */
+	if(smer == RIGHT){
+		if(predesly == 3){
+			pozice++;
+			predesly = 2;
+			return IRQ_HANDLED;
+		}else if(predesly == 1){
+			pozice--;
+			predesly = 2;
+			smer = LEFT;
+			return IRQ_HANDLED;
+		}
+	}else{
+		if(predesly == 4){
+			pozice--;
+			predesly = 2;
+			return IRQ_HANDLED;
+		}else if(predesly == 1){
+			pozice++;
+			predesly = 2;
+			smer = RIGHT;
+			return IRQ_HANDLED;
+		}
+	}
+		
+	if(gpio_get_value(IRC2) == LOW){
+		pozice++;
+		smer = RIGHT;
+	}else{
+		pozice--;
+		smer = LEFT;
+	}
+	predesly = 2;
+        return IRQ_HANDLED;
+} /* irc_irq_handlerAS */
 
-static irqreturn_t irc_irq_handler(int irq, void *dev){
-	volatile int Anow, Bnow;
-	irc_instance *irc = (irc_instance*)dev;
-        volatile int pom;
-        Anow = gpio_get_value(IRC1);
-        Bnow = gpio_get_value(IRC2);
-        pom = getWay(irc->ircA_old,irc->ircB_old, Anow, Bnow);
-/*        if(pom == 0){*/
-/*		printk(KERN_NOTICE "irc nestiha\n");*/
-/*	}*/
-	irc->act_pos += pom;
-        irc->ircA_old = Anow;
-	irc->ircB_old = Bnow;
-/*	printk(KERN_NOTICE "%u\n", irc->act_pos);*/
+/*
+irc_irq_handlerBS:
+	Kanál IRC 2 (= 4) při sestupné hraně určí směr podle kanálu 1 (= 3).
+*/
+static irqreturn_t irc_irq_handlerBS(int irq, void *dev){
+	if(smer == RIGHT){
+		if(predesly == 1){
+			pozice++;
+			predesly = 3;
+			return IRQ_HANDLED;
+		}else if(predesly == 4){
+			pozice--;
+			predesly = 3;
+			smer = LEFT;
+			return IRQ_HANDLED;
+		}
+	}else{
+		if(predesly == 2){
+			pozice--;
+			predesly = 3;
+			return IRQ_HANDLED;
+		}else if(predesly == 4){
+			pozice++;
+			predesly = 3;
+			smer = RIGHT;
+			return IRQ_HANDLED;
+		}
+	}
+	
+	if(gpio_get_value(IRC1) == HIGH){
+		pozice++;
+		smer = RIGHT;
+	}else{
+		pozice--;
+		smer = LEFT;
+	}
+	predesly = 3;
+        return IRQ_HANDLED;
+} /* irc_irq_handlerBS */
+
+/*
+irc_irq_handlerAN:
+	Kanál IRC 4 (= 2) při náběžné hraně určí směr podle kanálu 1 (= 3).
+*/
+static irqreturn_t irc_irq_handlerBN(int irq, void *dev){
+	if(smer == RIGHT){
+		if(predesly == 2){
+			pozice++;
+			predesly = 4;
+			return IRQ_HANDLED;
+		}else if(predesly == 3){
+			pozice--;
+			predesly = 4;
+			smer = LEFT;
+			return IRQ_HANDLED;
+		}
+	}else{
+		if(predesly == 1){
+			pozice--;
+			predesly = 4;
+			return IRQ_HANDLED;
+		}else if(predesly == 3){
+			pozice++;
+			predesly = 4;
+			smer = RIGHT;
+			return IRQ_HANDLED;
+		}
+	}
+		
+	if(gpio_get_value(IRC1) == LOW){
+		pozice++;
+		smer = RIGHT;
+	}else{
+		pozice--;
+		smer = LEFT;
+	}
+	predesly = 4;
         return IRQ_HANDLED;
 } /* irc_irq_handler */
 
 ssize_t irc_read(struct file *file, char *buffer, size_t length, loff_t *offset) {
-	irc_instance *irc = (irc_instance*)(file->private_data);
-/*	uint32_t pos;*/
 	int bytes_to_copy;
 	int ret;
 	uint32_t pos;
-	if(!irc){
-		printk(KERN_ERR "irc_read: no instance\n");
-		return -ENODEV;
-	}
 
 	if (length < sizeof(uint32_t)) {
 		printk(KERN_DEBUG "Trying to read less bytes than a irc message, \n");
@@ -178,7 +225,7 @@ ssize_t irc_read(struct file *file, char *buffer, size_t length, loff_t *offset)
 		return 0;
 	}
 	
-	pos = *(volatile uint32_t*)&irc->act_pos;
+	pos = pozice;
 	
 	ret = copy_to_user(buffer, &pos, sizeof(uint32_t));
 
@@ -193,25 +240,19 @@ ssize_t irc_read(struct file *file, char *buffer, size_t length, loff_t *offset)
 
 int irc_open(struct inode *inode, struct file *file) {
 	int dev_minor = MINOR(file->f_dentry->d_inode->i_rdev);
-	irc_instance *irc;
 	if(dev_minor > 0){
 		printk(KERN_ERR "There is no hardware support for the device file with minor nr.: %d\n", dev_minor);
 	}
-	irc = &irc0;
 	
-	atomic_inc(&irc->used_count);
+	atomic_inc(&used_count);
 
-	file->private_data = irc;
+	file->private_data = NULL;
 	return 0;
 } /* irc_open */
 
 int irc_relase(struct inode *inode, struct file *file) {
-	irc_instance *irc = (irc_instance*)(file->private_data);
-	if(!irc){
-		printk(KERN_ERR "irc_read: no instance\n");
-		return -ENODEV;
-	}
-	if(atomic_dec_and_test(&irc->used_count)){
+
+	if(atomic_dec_and_test(&used_count)){
 		printk(KERN_DEBUG "Last irc user finished\n");
 	}
 	
@@ -227,39 +268,50 @@ struct file_operations irc_fops={
 	.release=irc_relase,
 };
 
-static int servoPi_init(void) {
-	int res;
-	int dev_minor = 0;
-	
-	struct device *this_dev;
-	
-	printk(KERN_NOTICE "servoPi init started\n");
-	
-	irc_class=class_create(THIS_MODULE, DEVICE_NAME);
-	res=register_chrdev(dev_major,DEVICE_NAME, &irc_fops);
-	if (res<0) {
-		printk(KERN_ERR "Error registering driver.\n");
-		goto register_error;
-	}
-	if(dev_major == 0){
-		dev_major = res;
-	}
-	this_dev=device_create(irc_class, NULL, MKDEV(dev_major, dev_minor), &irc0,  "irc%d", dev_minor);
-		      
-	if(IS_ERR(this_dev)){
-		printk(KERN_ERR "problem to create device \"irc%d\" in the class \"irc\"\n", dev_minor);
-		return (-1);
-	}
-		      
-		      
+void free_irq_fn(void){
+		free_irq((unsigned int)irc1_irq_num, NULL);
+		free_irq((unsigned int)irc3_irq_num, NULL);
+		free_irq((unsigned int)irc2_irq_num, NULL);
+		free_irq((unsigned int)irc4_irq_num, NULL);
+}
+
+void free_fn(void){
+	gpio_free(IRC1);
+	gpio_free(IRC2);
+	gpio_free(IRC3);
+	gpio_free(IRC4);
+	gpio_free(IRQ);
+}
+
+/*
+inicializacePropojeni:
+	Zinicializuje GPIO 2, 3, 4, 23 a 24 a nastaví pro vstup.
+*/
+
+int inicializacePropojeni(void){
 	if(gpio_request(IRC1, IRC1_name) != 0){
 		printk(KERN_ERR "failed request GPIO 2\n");
 		return (-1); 
 	}
-	    
+	
 	if(gpio_request(IRC2, IRC2_name) != 0){
+		printk(KERN_ERR "failed request GPIO 3\n");
+		gpio_free(IRC1);
+		return (-1);
+	}
+	
+	if(gpio_request(IRC3, IRC3_name) != 0){
+		printk(KERN_ERR "failed request GPIO 24\n");
+		gpio_free(IRC1);
+		gpio_free(IRC2);
+		return (-1);
+	}
+	
+	if(gpio_request(IRC4, IRC4_name) != 0){
 		printk(KERN_ERR "failed request GPIO 4\n");
 		gpio_free(IRC1);
+		gpio_free(IRC2);
+		gpio_free(IRC3);
 		return (-1);
 	}
 	
@@ -267,113 +319,138 @@ static int servoPi_init(void) {
 		printk(KERN_ERR "failed request GPIO 23\n");
 		gpio_free(IRC1);
 		gpio_free(IRC2);
+		gpio_free(IRC3);
+		gpio_free(IRC4);
 		return (-1);
 	}
 	
-	if(gpio_request(IRC1_1, IRC1_1_name) != 0){
-		printk(KERN_ERR "failed request GPIO 24\n");
-		gpio_free(IRC1);
-		gpio_free(IRC2);
-		gpio_free(IRQ);
-		return (-1);
-	}
-	
-	if(gpio_request(IRC2_2, IRC2_2_name) != 0){
-		printk(KERN_ERR "failed request GPIO 4\n");
-		gpio_free(IRC1);
-		gpio_free(IRC2);
-		gpio_free(IRQ);
-		gpio_free(IRC1_1);
-		return (-1);
-	}
-	    
 	if(gpio_direction_input(IRC1) != 0){
 		printk(KERN_ERR "failed set direction input GPIO 2\n");
-		gpio_free(IRC1);
-		gpio_free(IRC2);
-		gpio_free(IRQ);
-		gpio_free(IRC1_1);
-		gpio_free(IRC2_2);
+		free_fn();
 		return (-1);
 	}
 	    
 	if(gpio_direction_input(IRC2) != 0){
-		printk(KERN_ERR "failed set direction input GPIO 4\n");
-		gpio_free(IRC1);
-		gpio_free(IRC2);
-		gpio_free(IRQ);
-		gpio_free(IRC1_1);
-		gpio_free(IRC2_2);
+		printk(KERN_ERR "failed set direction input GPIO 3\n");
+		free_fn();
 		return (-1);
 	}
 	
+	if(gpio_direction_input(IRC3) != 0){
+		printk(KERN_ERR "failed set direction input GPIO 24\n");
+		free_fn();
+		return (-1);
+	}
+	if(gpio_direction_input(IRC4) != 0){
+		printk(KERN_ERR "failed set direction input GPIO 4\n");
+		free_fn();
+		return (-1);
+	}
 	if(gpio_direction_input(IRQ) != 0){
 		printk(KERN_ERR "failed set direction input GPIO 23\n");
-		gpio_free(IRC1);
-		gpio_free(IRC2);
-		gpio_free(IRQ);
-		gpio_free(IRC1_1);
-		gpio_free(IRC2_2);
+		free_fn();
+		return (-1);
+	}
+	return 0;
+}
+
+static int servoPi_init(void) {
+	int res;
+	int dev_minor = 0;
+	int pom = 0;
+	
+	struct device *this_dev;
+	
+	printk(KERN_NOTICE "servoPi init started\n");
+	printk(KERN_NOTICE "verze bez tabulky (4x funce na 4 GPIO) - FAST\n");
+/*	printk(KERN_NOTICE "testovaci verze - pouze pricitani\n");*/
+	irc_class=class_create(THIS_MODULE, DEVICE_NAME);
+	res=register_chrdev(dev_major,DEVICE_NAME, &irc_fops);
+	if (res<0) {
+		printk(KERN_ERR "Error registering driver.\n");
+		class_destroy(irc_class);
+		return -ENODEV;
+		/*goto register_error;*/
+	}
+	if(dev_major == 0){
+		dev_major = res;
+	}
+	this_dev=device_create(irc_class, NULL, MKDEV(dev_major, dev_minor), NULL,  "irc%d", dev_minor);
+		      
+	if(IS_ERR(this_dev)){
+		printk(KERN_ERR "problem to create device \"irc%d\" in the class \"irc\"\n", dev_minor);
 		return (-1);
 	}
 	
-	if(gpio_direction_input(IRC1_1) != 0){
-		printk(KERN_ERR "failed set direction input GPIO 23\n");
-		gpio_free(IRC1);
-		gpio_free(IRC2);
-		gpio_free(IRQ);
-		gpio_free(IRC1_1);
-		gpio_free(IRC2_2);
+	pom = inicializacePropojeni();	      
+	if(pom == -1){
+		printk(KERN_ERR "Inicializace GPIO se nezdarila");
+		return (-1);
+	}
+
+	irc1_irq_num = gpio_to_irq(IRC1);
+	if(irc1_irq_num < 0){
+		printk(KERN_ERR "failed get IRQ number GPIO 2\n");
+		free_fn();
 		return (-1);
 	}
 	
-	if(gpio_direction_input(IRC2_2) != 0){
-		printk(KERN_ERR "failed set direction input GPIO 23\n");
-		gpio_free(IRC1);
-		gpio_free(IRC2);
-		gpio_free(IRQ);
-		gpio_free(IRC1_1);
-		gpio_free(IRC2_2);
+	irc2_irq_num = gpio_to_irq(IRC2);
+	if(irc2_irq_num < 0){
+		printk(KERN_ERR "failed get IRQ number GPIO 3\n");
+		free_fn();
 		return (-1);
 	}
 	
-	irq_num = gpio_to_irq(IRQ);
-	if(irq_num < 0){
-		printk(KERN_ERR "failed get IRQ number GPIO 23\n");
-		gpio_free(IRC1);
-		gpio_free(IRC2);
-		gpio_free(IRQ);
-		gpio_free(IRC1_1);
-		gpio_free(IRC2_2);
+	irc3_irq_num = gpio_to_irq(IRC3);
+	if(irc3_irq_num < 0){
+		printk(KERN_ERR "failed get IRQ number GPIO 24\n");
+		free_fn();
 		return (-1);
 	}
 	
-	if(request_irq((unsigned int)irq_num, irc_irq_handler, IRQF_TRIGGER_RISING, "irq", &irc0) != 0){
-		printk(KERN_ERR "failed request IRQ GPIO 23\n");
-		gpio_free(IRC1);
-		gpio_free(IRC2);
-		gpio_free(IRQ);
-		gpio_free(IRC1_1);
-		gpio_free(IRC2_2);
+	irc4_irq_num = gpio_to_irq(IRC4);
+	if(irc4_irq_num < 0){
+		printk(KERN_ERR "failed get IRQ number GPIO 4\n");
+		free_fn();
 		return (-1);
 	}
 	
-	init_move();
+	if(request_irq((unsigned int)irc1_irq_num, irc_irq_handlerAN, IRQF_TRIGGER_RISING, "irc1_irqAS", NULL) != 0){
+		printk(KERN_ERR "failed request IRQ GPIO 2\n");
+		free_fn();
+		return (-1);
+	}
+	if(request_irq((unsigned int)irc3_irq_num, irc_irq_handlerAS, IRQF_TRIGGER_FALLING, "irc3_irqAN", NULL) != 0){
+		printk(KERN_ERR "failed request IRQ GPIO 24\n");
+		free_fn();
+		free_irq((unsigned int)irc1_irq_num, NULL);
+		return (-1);
+	}
+	if(request_irq((unsigned int)irc2_irq_num, irc_irq_handlerBS, IRQF_TRIGGER_FALLING, "irc2_irqBS", NULL) != 0){
+		printk(KERN_ERR "failed request IRQ GPIO 3\n");
+		free_fn();
+		free_irq((unsigned int)irc1_irq_num, NULL);
+		free_irq((unsigned int)irc3_irq_num, NULL);
+		return (-1);
+	}
+	if(request_irq((unsigned int)irc4_irq_num, irc_irq_handlerBN, IRQF_TRIGGER_RISING, "irc4_irqBN", NULL) != 0){
+		printk(KERN_ERR "failed request IRQ GPIO 4\n");
+		free_fn();
+		free_irq((unsigned int)irc1_irq_num, NULL);
+		free_irq((unsigned int)irc3_irq_num, NULL);
+		free_irq((unsigned int)irc2_irq_num, NULL);
+		return (-1);
+	}
 	printk(KERN_NOTICE "servoPi init done\n");
 	return 0;
-register_error:
-	class_destroy(irc_class);
-	return -ENODEV;
+	
 } /* servoPi_init */
 
 static void servoPi_exit(void) {
 	int dev_minor = 0;
-	free_irq((unsigned int)irq_num, &irc0);
-	gpio_free(IRC1);
-	gpio_free(IRC2);
-	gpio_free(IRQ);
-	gpio_free(IRC1_1);
-	gpio_free(IRC2_2);
+	free_irq_fn();
+	free_fn();
 	device_destroy(irc_class, MKDEV(dev_major, dev_minor));
 	class_destroy(irc_class);
 	unregister_chrdev(dev_major,DEVICE_NAME);
@@ -385,6 +462,6 @@ module_init(servoPi_init);
 module_exit(servoPi_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1.0");
+MODULE_VERSION("1.1");
 MODULE_DESCRIPTION("servoPi module for driving servo");
-MODULE_AUTHOR("Radek");
+MODULE_AUTHOR("Radek Mečiar");
