@@ -63,21 +63,11 @@ static irqreturn_t irc_irq_handlerAN(int irq, void *dev){
 			pozice++;
 			predesly = 1;
 			return IRQ_HANDLED;
-		}else if(predesly == 2){
-			pozice--;
-			predesly = 1;
-			smer = LEFT;
-			return IRQ_HANDLED;
 		}
 	}else{
 		if(predesly == 3){
 			pozice--;
 			predesly = 1;
-			return IRQ_HANDLED;
-		}else if(predesly == 2){
-			pozice++;
-			predesly = 1;
-			smer = RIGHT;
 			return IRQ_HANDLED;
 		}
 	}
@@ -104,21 +94,11 @@ static irqreturn_t irc_irq_handlerAS(int irq, void *dev){
 			pozice++;
 			predesly = 2;
 			return IRQ_HANDLED;
-		}else if(predesly == 1){
-			pozice--;
-			predesly = 2;
-			smer = LEFT;
-			return IRQ_HANDLED;
 		}
 	}else{
 		if(predesly == 4){
 			pozice--;
 			predesly = 2;
-			return IRQ_HANDLED;
-		}else if(predesly == 1){
-			pozice++;
-			predesly = 2;
-			smer = RIGHT;
 			return IRQ_HANDLED;
 		}
 	}
@@ -144,21 +124,11 @@ static irqreturn_t irc_irq_handlerBS(int irq, void *dev){
 			pozice++;
 			predesly = 3;
 			return IRQ_HANDLED;
-		}else if(predesly == 4){
-			pozice--;
-			predesly = 3;
-			smer = LEFT;
-			return IRQ_HANDLED;
 		}
 	}else{
 		if(predesly == 2){
 			pozice--;
 			predesly = 3;
-			return IRQ_HANDLED;
-		}else if(predesly == 4){
-			pozice++;
-			predesly = 3;
-			smer = RIGHT;
 			return IRQ_HANDLED;
 		}
 	}
@@ -184,21 +154,11 @@ static irqreturn_t irc_irq_handlerBN(int irq, void *dev){
 			pozice++;
 			predesly = 4;
 			return IRQ_HANDLED;
-		}else if(predesly == 3){
-			pozice--;
-			predesly = 4;
-			smer = LEFT;
-			return IRQ_HANDLED;
 		}
 	}else{
 		if(predesly == 1){
 			pozice--;
 			predesly = 4;
-			return IRQ_HANDLED;
-		}else if(predesly == 3){
-			pozice++;
-			predesly = 4;
-			smer = RIGHT;
 			return IRQ_HANDLED;
 		}
 	}
