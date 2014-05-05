@@ -286,63 +286,7 @@ void *thread_readValue(void *arg){
 	
 	return 0;
 
-} /* thread_controller */
-
-void *thread_sendValue(void *arg){
-/*	FILE *soubor;*/
-	int sockfd;
-	int len;
-	int result;
-	FILE *stream;
-	struct sockaddr_in address;
-	const struct timespec period = {0, 50*MS};
-	struct timespec time_to_wait;
-	struct timespec ts;
-	int32_t pom;
-	
-	/* vytvoření socketu pro klienta */
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	
-	/* pojmenujte socket podle serveru */
-	address.sin_family = AF_INET;
-/*	address.sin_addr.s_addr = inet_addr("192.168.1.23");*/
-	address.sin_addr.s_addr = inet_addr("10.42.0.1");
-	address.sin_port = htons(9051);
-	len = sizeof(address);
-	
-	result = connect(sockfd, (struct sockaddr *)&address, len);
-/*	if((soubor = fopen("/dev/irc0", "r")) == NULL){*/
-/*		printf("chyba otevreni souboru /dev/irc0\n");*/
-/*		return 0;*/
-/*	}*/
-	if(result == -1){
-		perror("opps: klient");
-		exit(1);
-	}
-	stream=fdopen(sockfd,"w");
-	puts("Nastavuji prioritu odesilacimu procesu 49");
-/*	setprio(50, SCHED_FIFO);*/
-	clock_gettime(CLOCK_MONOTONIC,&time_to_wait);
-	while(1) {
-		timespec_add(&time_to_wait,&time_to_wait,&period);
-		clock_gettime(CLOCK_MONOTONIC,&ts);
-		pom = (int32_t)pozice;
-		fwrite(&pom, sizeof(int32_t), 1, stream);
-		pom = (int32_t)ts.tv_sec;
-		fwrite(&pom, sizeof(int32_t), 1, stream);
-		pom = (int32_t)ts.tv_nsec;
-		fwrite(&pom, sizeof(int32_t), 1, stream);
-		//fwrite(&newLine, sizeof(char), 1, stream);
-		fflush(stream);
-		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &time_to_wait,NULL);
-		
-	}
-	close(sockfd);
-	fclose(stream);
-/*	exit(0);*/
-	return 0;
-
-} /* thread_controller */
+} /* thread_readValue */
 
 int diagnostikaSmeru(void){
 	uint32_t next = 0;
@@ -382,10 +326,6 @@ int diagnostikaSmeru(void){
 } /* diagnostikaSmeru */
 
 int main(int argc, char **argv) {
-
-/*	FILE *fd;*/
-/*	char * myfifo = "/media/ramdisk/otackyFIFO";*/
-/*	int64_t pom = 0;*/
 	
 	int hodnota = 0;
 	
@@ -394,8 +334,7 @@ int main(int argc, char **argv) {
 	
 	pthread_t readValue;
 	pthread_attr_t readValue_attr;
-	pthread_t sendValue;
-	pthread_attr_t sendValue_attr;
+
 	setSpeed();
 	
   	puts("program servoPi bezi");
@@ -439,17 +378,8 @@ int main(int argc, char **argv) {
    	}
    	pthread_create(&readValue, &readValue_attr, &thread_readValue, NULL);
    	
-
-	
-	puts("Startuju vlakno pro posilani hodnot");
-/*	 reading new value thread */
-	if (pthread_attr_init(&sendValue_attr)){
-   		puts("Chyba pthread_attr_init");
-   		return 1;
-   	}
-   	pthread_create(&sendValue, &sendValue_attr, &thread_sendValue, NULL);
 	pthread_join(readValue, NULL);
 	pthread_join(controller, NULL);
-	pthread_join(sendValue, NULL);
+
 	return 0;
 } /* main */
