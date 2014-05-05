@@ -43,8 +43,7 @@ int main(void){
 	const struct timespec period = {0, 50*MS};
 	struct timespec time_to_wait;
 	struct timespec ts;
-	uint32_t pom;
-	int32_t pom1;
+	int32_t pom;
 	if((soubor = fopen("/dev/irc0", "r")) == NULL){
 		printf("chyba otevreni souboru /dev/irc0\n");
 		return 0;
@@ -67,12 +66,12 @@ int main(void){
 		exit(1);
 	}
 	stream=fdopen(sockfd,"w");
-	puts("Nastavuji prioritu odesilacimu procesu 49");
+/*	puts("Nastavuji prioritu odesilacimu procesu 49");*/
 /*	setprio(50, SCHED_FIFO);*/
 	clock_gettime(CLOCK_MONOTONIC,&time_to_wait);
 	while(1) {
 		clock_gettime(CLOCK_MONOTONIC,&ts);
-		if(fread(&pom,1,sizeof(uint32_t),soubor) == -1){
+		if(fread(&pom,1,sizeof(int32_t),soubor) == -1){
 			printf("chyba pri cteni ze souboru /dev/irc0\n");
 			fclose(soubor);
 			return 0;
@@ -81,10 +80,11 @@ int main(void){
 		
 /*		pom = (int32_t)pozice;*/
 		fwrite(&pom, sizeof(int32_t), 1, stream);
-		pom1 = (int32_t)ts.tv_sec;
-		fwrite(&pom1, sizeof(int32_t), 1, stream);
-		pom1 = (int32_t)ts.tv_nsec;
-		fwrite(&pom1, sizeof(int32_t), 1, stream);
+/*		printf("%010i\r",pom);*/
+		pom = (int32_t)ts.tv_sec;
+		fwrite(&pom, sizeof(int32_t), 1, stream);
+		pom = (int32_t)ts.tv_nsec;
+		fwrite(&pom, sizeof(int32_t), 1, stream);
 		//fwrite(&newLine, sizeof(char), 1, stream);
 		fflush(stream);
 		
