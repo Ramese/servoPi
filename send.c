@@ -40,7 +40,7 @@ int main(void){
 	int result;
 	FILE *stream;
 	struct sockaddr_in address;
-	const struct timespec period = {0, 50*MS};
+	const struct timespec period = {0, 20*MS};
 	struct timespec time_to_wait;
 	struct timespec ts;
 	int32_t pom;
