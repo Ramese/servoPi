@@ -16,8 +16,8 @@ Autor: Radek Mečiar
 #define PWM_CLK_DIV	*(clk+41)
 
 #define LEFT		1
-#define RIGHT		2
-#define STOP		3
+#define RIGHT		-1
+
 #define GPIO_PWM	18
 #define GPIO_LEFT	14
 #define GPIO_RIGHT	15
@@ -152,17 +152,18 @@ void otaceni(int action){
 		GPIO_CLR = 1<<GPIO_RIGHT;
 		GPIO_SET = 1<<GPIO_LEFT;
 /*		puts("Otáčení do leva");*/
-	}else if(action == RIGHT){
+	}else{
 		GPIO_CLR = 1<<GPIO_LEFT;
 		GPIO_SET = 1<<GPIO_RIGHT;
 /*		puts("Otáčení do prava");*/
-	}else if(action == STOP){
-		GPIO_CLR = 1<<GPIO_RIGHT;
-		GPIO_CLR = 1<<GPIO_LEFT;
-/*		puts("Stop");*/
-	}else{
-		puts("Nedefinovaná akce");
 	}
+/*	else if(action == STOP){*/
+/*		GPIO_CLR = 1<<GPIO_RIGHT;*/
+/*		GPIO_CLR = 1<<GPIO_LEFT;*/
+/*		puts("Stop");*/
+/*	}else{*/
+/*		puts("Nedefinovaná akce");*/
+/*	}*/
 } /* otaceni */
 
 void setHWPWM(int hodnota){
