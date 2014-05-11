@@ -16,10 +16,12 @@ připojit propojovací obvod
 #include <asm/uaccess.h>
 #include <linux/device.h>
 
-#define IRC1	7 /* GPIO 2 -> IRC1 */
-#define IRC2	23 /* GPIO 3 -> IRC2 */
-#define IRC3 	8
-#define IRC4	24
+#define IRC2	7 /* GPIO 2 -> IRC1 */
+#define IRC4 	8
+
+#define IRC1	23 /* GPIO 3 -> IRC2 */
+#define IRC3	24
+
 #define IRQ	25
 
 #define IRC1_name	"GPIO2_irc1"
